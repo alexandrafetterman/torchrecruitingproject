@@ -1,8 +1,0 @@
---The total number of tests performed as of yesterday in the United States.
-
-select
-sum(totalTestEncountersViral) as total_tests
-
-from statehistory
-
-where date < getdate();

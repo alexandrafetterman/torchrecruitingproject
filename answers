@@ -1,0 +1,133 @@
+----
+--The total number of tests performed as of yesterday in the United States.
+
+
+QUERY
+
+select
+sum(totalTestsViral + totalTestsAntibody + totalTestsAntigen) as total_tests
+
+from statehistory
+
+where date < getdate();
+
+
+TABLE
+
+| total_tests |
+| ----------- |
+| 35290504224 |
+
+
+DESCRIPTION
+
+The metric presented, total_tests, displays the total number of tests performed as of yesterday in the US. This metric includes not only the number of tests performed to examine whether or not someone may actively have COVID-19 (polymerase chain reaction test also known as a PCR test), but also antibody and antigen tests. If the amount of either antibody, antigen, or positive case tests conducted total is desired, there are ways to focus on those numbers specifically. This total_tests metric doesn't really tell us anything other than how many PCR, antigen, and antibody tests were performed in relation to COVID-19 as of yesterday. In addition, due to variations in test reporting methods, total PCR tests in particular is displayed in the data source in the form of other columns (totalTestResults, summation of positive tests, probable, and negative tests, totalTestEncountersViral) which could affect this total if/when used.
+
+
+
+----
+--The 7-day rolling average number of new cases per day for the last 30 days.
+
+
+QUERY
+
+with cases (date, new) as
+(select
+date,
+sum(positiveIncrease)
+
+from statehistory
+
+group by date)
+
+select
+date,
+avg(new) over(order by date asc rows 6 preceding) as avg_cases
+
+from cases
+
+where date between dateadd(day,-30, getdate()) and getdate();
+
+
+TABLE
+
+| date      | avg_cases   |
+| --------- | ----------  |
+| 2/6/2021  | 120536.1429 |
+| 2/7/2021  | 117197.1429 |
+| 2/8/2021  | 111131      |
+| 2/9/2021  | 107612.4286 |
+| 2/10/2021 | 104503      |
+| 2/11/2021 | 101433      |
+| 2/12/2021 | 97130.71429 |
+| 2/13/2021 | 93714.28571 |
+| 2/14/2021 | 90310       |
+| 2/15/2021 | 87072.85714 |
+| 2/16/2021 | 81833.71429 |
+| 2/17/2021 | 77783       |
+| 2/18/2021 | 72698.28571 |
+| 2/19/2021 | 68933.42857 |
+| 2/20/2021 | 66320.85714 |
+| 2/21/2021 | 64397.71429 |
+| 2/22/2021 | 64033.85714 |
+| 2/23/2021 | 65861.42857 |
+| 2/24/2021 | 66778.42857 |
+| 2/25/2021 | 68027.14286 | 
+| 2/26/2021 | 68053       |
+| 2/27/2021 | 67894.57143 |
+| 2/28/2021 | 67272.71429 |
+| 3/1/2021  | 66638.71429 |
+| 3/2/2021  | 64516.28571 |
+| 3/3/2021  | 63598.85714 |
+| 3/4/2021  | 62159.14286 |
+| 3/5/2021  | 61292       |
+| 3/6/2021  | 59687.71429 |
+| 3/7/2021  | 57900       |
+
+
+DESCRIPTION
+
+The table shown displays the date and the rolling, 7-day average of new cases for the last 30 days (in this case, the last day of data would be 3/7/2021 so 30 days including that day). New cases is defined as new, positive cases as a negative PCR test would not be considered a "new" case. An increase in this rolling average would tell us that the number of positive cases is trending upward, overall, while a decrease would tell us the number of positive cases is trending downward overall. Rolling averages are more useful of a metric than the raw, actual values day over day as in the form of a trendline on a graph, it makes it easy and simple to see on average, whether the case count is going up or down without having to do additional calculations.
+
+
+
+----
+-- The 10 states with the highest test positivity rate (positive tests/tests performed) for tests performed in the last 30 days.
+
+
+QUERY 
+
+select
+state,
+(positiveTestsViral/coalesce(totalTestEncountersViral,totalTestsViral,totalTestsPeopleViral,totalTestResults)*100 as positivity_rate
+
+from statehistory
+
+where date between dateadd(day,-30, getdate()) and getdate()
+
+group by state 
+
+order by positivity_rate desc limit 10;
+
+
+TABLE
+
+| state | positivity_rate |
+| ----- | --------------- |
+| SD    | 0.142755        |
+| TX    | 0.127246        |
+| SC    | 0.122047        |
+| FL    | 0.110604        |
+| IA    | 0.107733        |
+| MO    | 0.103284        |
+| GA    | 0.103079        |
+| UT    | 0.102625        |
+| NE    | 0.101289        |
+| OK    | 0.097085        |
+ 
+
+DESCRIPTION
+
+I assumed by "test positivity rate", PCR test positivity rate is what is desired as an overall positivity rate involving antigen, antibody, and PCR tests would result in a metric that doesn't really tell us anything as those tests are looking for different things. So the table displayed shows the top 10 PCR test positivity rate, by state, over the past 30 days (while date in the query above is dynamic, for table purposes, only the last 30 days of data was used from February 6 to March 7, 2021). In the query, the denominator is coalesced due to variation among the states in reporting test totals and based on the COVID Tracking Project's mentioned preferred total test fields.
+
+However, due to poor data integrity, there are numerous states that only reported total PCR test counts in one form or another. These counts include positive, probable, and negative test results. This means that this "test positivity rate" could not be calculated for 26 out of 50 states as no explicit positive PCR test counts were provided in the source data: AL, AR, AS, AZ, CA, CO, DC, GU, ID, IL, KS, LA, MN, MP, MS, MT, NC, ND, NH, NJ, NM, NV, NY, PA, VI, VT, WI, WV. I would want to find the data for positive PCR tests for these states so that all states are examined, before utilizing this metric for any insights or business decisions related to this version of a positivity rate. In addition, due to variation in test reporting methods between states, as mentioned in a previous description, there are multiple ways to calculate the total amount of PCR tests performed.
